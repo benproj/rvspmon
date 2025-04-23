@@ -1,24 +1,22 @@
-name: RSVP monitor          # appears in the Actions tab
+name: RSVP monitor
 
 on:
-  schedule:                 # cron times are always interpreted in UTC :contentReference[oaicite:0]{index=0}
-    - cron: '0 * * * *'     # run at the top of every hour
-  workflow_dispatch:        # lets you click “Run workflow” for a manual test :contentReference[oaicite:1]{index=1}
+  schedule:
+    - cron: '0 * * * *'        # every hour, UTC  :contentReference[oaicite:3]{index=3}
+  workflow_dispatch:           # manual “Run workflow” button
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest  # free GitHub-hosted runner tier :contentReference[oaicite:2]{index=2}
-    env:                    # expose your secret to the script as an env var :contentReference[oaicite:3]{index=3}
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+    runs-on: ubuntu-latest     # free GitHub runner  :contentReference[oaicite:4]{index=4}
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}   # << add this secret
     steps:
-      - uses: actions/checkout@v4    # fetch your repo contents :contentReference[oaicite:4]{index=4}
+      - uses: actions/checkout@v4                       # pulls code  :contentReference[oaicite:5]{index=5}
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'     # pick any version pre-cached on the runner :contentReference[oaicite:5]{index=5}
-          cache: 'pip'               # built-in dependency caching for pip :contentReference[oaicite:6]{index=6}
+          python-version: '3.11'
+          cache: 'pip'                                  # pip cache  :contentReference[oaicite:6]{index=6}
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
       - name: Run monitor
-        run: |
-          python rsvp_monitor.py
+        run: python rsvp_monitor.py
