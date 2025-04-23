@@ -137,23 +137,32 @@ def html_to_discord(text: str) -> str:
     return html.unescape(text)[:2000]               # 2 000-char hard limit :contentReference[oaicite:0]{index=0}
 
 def compose_discord(changes: Dict[str, List]) -> str:
-    parts = []
+    lines = []
     if changes["new"]:
-        parts.append("**🆕 New products:**")
+        lines.append("**🆕 New products**")
         for p in changes["new"]:
-            parts.append(f"• [{p['title']}]({p['url']}) – {p['price']}")
+            # Plain URL, no markdown link
+            lines.append(f"• {p['title']} – {p['price']}  <{p['url']}>")
     if changes["price"]:
-        parts.append("**💲 Price changes:**")
+        lines.append("**💲 Price changes**")
         for p in changes["price"]:
-            parts.append(f"• [{p['title']}]({p['url']}): {p['old']} → **{p['new']}**")
-    return "\n".join(parts) or "No changes."
+            lines.append(f"• {p['title']}: {p['old']} → **{p['new']}**  <{p['url']}>")
+
+    # Fallback so Discord never gets an empty string
+    msg = "\n".join(lines).strip() or "Nothing changed, but monitor ran."
+    return msg[:2000]                 # Discord hard-limit :contentReference[oaicite:2]{index=2}
+
 
 def send_alert(message: str) -> None:
     if not WEBHOOK:
-        print("⚠️ No DISCORD_WEBHOOK env var; skipping alert.")
+        print("⚠️  DISCORD_WEBHOOK not set")
         return
     r = requests.post(WEBHOOK, json={"content": message}, timeout=10)
-    r.raise_for_status()          # 204 No Content = success :contentReference[oaicite:1]{index=1}
+    if r.status_code >= 400:
+        # Show Discord's error for quick debugging, but don't crash the job
+        print(f"Discord error {r.status_code}: {r.text}")
+        r.raise_for_status()
+
 
 # ───────────────  MAIN  ─────────────── #
 def main() -> None:
