@@ -8,15 +8,10 @@ RSVP Cigars product/price monitor
  • Compares with the last snapshot in `previous_products.json`
  • Sends an HTML e‑mail if new items or price changes are found
 """
-
-import json
-import os
-import re
-import smtplib
+import html            # <-- new import
+import requests, os, json, re
 from datetime import datetime
 from decimal import Decimal
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from typing import List, Dict
 
 import requests  # HTTP client :contentReference[oaicite:2]{index=2}
@@ -25,12 +20,6 @@ from bs4 import BeautifulSoup  # HTML parser :contentReference[oaicite:3]{index
 # ───────────────────────────────  CONFIG  ────────────────────────────── #
 BASE_URL = "https://rsvpcigars.com"
 SEED_PAGES = [f"{BASE_URL}/en/cubans/", f"{BASE_URL}/en/non-cubans/"]
-
-SMTP_HOST = os.getenv("SMTP_HOST")      # e.g. smtp.gmail.com
-SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
-SMTP_USER = os.getenv("SMTP_USER")      # full e‑mail address or username
-SMTP_PASS = os.getenv("SMTP_PASS")      # app‑specific or SMTP password
-ALERT_TO  = os.getenv("ALERT_TO")       # destination inbox
 
 
 DATA_FILE = "previous_products.json"
@@ -136,61 +125,47 @@ def compare(old: List[Dict[str, str]], new: List[Dict[str, str]]) -> Dict[str, L
                 )
     return changes
 
+# ─────────────  DISCORD HELPER  ───────────── #
+WEBHOOK = os.getenv("DISCORD_WEBHOOK")  # set as a GitHub secret
 
-# ───────────────────────────────  ALERTING  ──────────────────────────── #
-def compose_email(ch: Dict[str, List]) -> str:
-    html = ["<h2>RSVP Cigars – site update</h2>"]
+def html_to_discord(text: str) -> str:
+    """Very light HTML→Discord markdown."""
+    text = re.sub(r"</?h\d>", "**", text)           # <h3> → **bold**
+    text = text.replace("<br>", "\n")
+    text = text.replace("</li>", "\n• ")            # bullets
+    text = re.sub(r"<[^>]+>", "", text)             # strip anything left
+    return html.unescape(text)[:2000]               # 2 000-char hard limit :contentReference[oaicite:0]{index=0}
 
-    if ch["new"]:
-        html.append("<h3>New products</h3><ul>")
-        for p in ch["new"]:
-            html.append(f'<li><a href="{p["url"]}">{p["title"]}</a> – {p["price"]}</li>')
-        html.append("</ul>")
+def compose_discord(changes: Dict[str, List]) -> str:
+    parts = []
+    if changes["new"]:
+        parts.append("**🆕 New products:**")
+        for p in changes["new"]:
+            parts.append(f"• [{p['title']}]({p['url']}) – {p['price']}")
+    if changes["price"]:
+        parts.append("**💲 Price changes:**")
+        for p in changes["price"]:
+            parts.append(f"• [{p['title']}]({p['url']}): {p['old']} → **{p['new']}**")
+    return "\n".join(parts) or "No changes."
 
-    if ch["price"]:
-        html.append("<h3>Price changes</h3><ul>")
-        for p in ch["price"]:
-            html.append(
-                f'<li><a href="{p["url"]}">{p["title"]}</a>: {p["old"]} → <strong>{p["new"]}</strong></li>'
-            )
-        html.append("</ul>")
-
-    return "\n".join(html)
-
-
-def send_email(subject: str, html_body: str) -> None:
-    # guard against unset SMTP settings
-    missing = [x for x in (SMTP_HOST, SMTP_USER, SMTP_PASS, ALERT_TO) if not x]
-    if missing:
-        print("⚠️  E‑mail disabled – set SMTP_* env vars to enable alerts.")
-        print(html_body)
+def send_alert(message: str) -> None:
+    if not WEBHOOK:
+        print("⚠️ No DISCORD_WEBHOOK env var; skipping alert.")
         return
-    msg = MIMEMultipart()
-    msg["From"] = SMTP_USER
-    msg["To"] = ALERT_TO
-    msg["Subject"] = subject
-    msg.attach(MIMEText(html_body, "html"))
+    r = requests.post(WEBHOOK, json={"content": message}, timeout=10)
+    r.raise_for_status()          # 204 No Content = success :contentReference[oaicite:1]{index=1}
 
-    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.send_message(msg)
-
-
-# ────────────────────────────────  MAIN  ─────────────────────────────── #
+# ───────────────  MAIN  ─────────────── #
 def main() -> None:
     current = fetch_all_products()
     old_snapshot = load_previous()
     old_products = old_snapshot["products"] if old_snapshot else []
 
-    changes = compare(old_products, current)
-
-    if changes["new"] or changes["price"]:
-        body = compose_email(changes)
-        send_email("RSVP Cigars update", body)
-
+    diff = compare(old_products, current)
+    if diff["new"] or diff["price"]:
+        send_alert(compose_discord(diff))  # 🔔 send to Discord
     save_snapshot(current)
-    print(f"{datetime.now():%Y-%m-%d %H:%M:%S} – scan complete.")
-
+    print(f"{datetime.now():%Y-%m-%d %H:%M:%S} – scan complete.")
 
 if __name__ == "__main__":
     main()
