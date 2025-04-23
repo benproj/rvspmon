@@ -18,5 +18,16 @@ jobs:
           cache: 'pip'                                  # pip cache  :contentReference[oaicite:6]{index=6}
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Download last snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: snapshot
+          path: .
       - name: Run monitor
         run: python rsvp_monitor.py
+      - name: Upload new snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot
+          path: previous_products.json
+          retention-days: 90
