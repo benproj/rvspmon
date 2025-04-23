@@ -19,11 +19,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Download last snapshot
+        continue-on-error: true  
         uses: actions/download-artifact@v4
         with:
           name: snapshot
           path: .
-          if-no-files-found: ignore 
       - name: Run monitor
         run: python rsvp_monitor.py
       - name: Upload new snapshot
