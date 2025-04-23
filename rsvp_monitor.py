@@ -146,7 +146,7 @@ def compose_discord(changes: Dict[str, List]) -> str:
     if changes["price"]:
         lines.append("**💲 Price changes**")
         for p in changes["price"]:
-            lines.append(f"• {p['title']}: {p['old']} → **{p['new']}**  <{p['url']}>")
+            lines.append(f"• {p['title']} – {p['price']}  <{p['url']}>")
 
     # Fallback so Discord never gets an empty string
     msg = "\n".join(lines).strip() or "Nothing changed, but monitor ran."
