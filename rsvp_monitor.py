@@ -9,6 +9,7 @@ RSVP Cigars product/price monitor
  • Sends an HTML e‑mail if new items or price changes are found
 """
 import html            # <-- new import
+import time
 import requests, os, json, re
 from datetime import datetime
 from decimal import Decimal
