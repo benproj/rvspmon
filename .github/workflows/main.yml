@@ -23,6 +23,7 @@ jobs:
         with:
           name: snapshot
           path: .
+          if-no-files-found: ignore 
       - name: Run monitor
         run: python rsvp_monitor.py
       - name: Upload new snapshot
