@@ -125,43 +125,47 @@ def compare(old: List[Dict[str, str]], new: List[Dict[str, str]]) -> Dict[str, L
                 )
     return changes
 
-# ─────────────  DISCORD HELPER  ───────────── #
-WEBHOOK = os.getenv("DISCORD_WEBHOOK")  # set as a GitHub secret
+# ──────────  DISCORD HELPER (with auto-split)  ────────── #
+WEBHOOK = os.getenv("DISCORD_WEBHOOK")        # set as a GitHub secret
+MAX_LEN = 2000                                # Discord hard cap :contentReference[oaicite:2]{index=2}
+RATE_PAUSE = 0.3                              # 5 msgs/s safety pause :contentReference[oaicite:3]{index=3}
 
 def html_to_discord(text: str) -> str:
     """Very light HTML→Discord markdown."""
-    text = re.sub(r"</?h\d>", "**", text)           # <h3> → **bold**
+    text = re.sub(r"</?h\d>", "**", text)      # headings -> bold
     text = text.replace("<br>", "\n")
-    text = text.replace("</li>", "\n• ")            # bullets
-    text = re.sub(r"<[^>]+>", "", text)             # strip anything left
-    return html.unescape(text)[:2000]               # 2 000-char hard limit :contentReference[oaicite:0]{index=0}
+    text = text.replace("</li>", "\n• ")
+    text = re.sub(r"<[^>]+>", "", text)
+    return html.unescape(text)
 
 def compose_discord(changes: Dict[str, List]) -> str:
-    lines = []
+    parts = []
     if changes["new"]:
-        lines.append("**🆕 New products**")
+        parts.append("**🆕 New products**")
         for p in changes["new"]:
-            # Plain URL, no markdown link
-            lines.append(f"• {p['title']} – {p['price']}  <{p['url']}>")
+            parts.append(f"• {p['title']} – {p['price']}  <{p['url']}>")
     if changes["price"]:
-        lines.append("**💲 Price changes**")
+        parts.append("**💲 Price changes**")
         for p in changes["price"]:
-            lines.append(f"• {p['title']} – {p['price']}  <{p['url']}>")
+            parts.append(f"• {p['title']}: {p['old']} → **{p['new']}**  <{p['url']}>")
 
-    # Fallback so Discord never gets an empty string
-    msg = "\n".join(lines).strip() or "Nothing changed, but monitor ran."
-    return msg[:2000]                 # Discord hard-limit :contentReference[oaicite:2]{index=2}
-
+    msg = "\n".join(parts).strip()
+    return msg or "Nothing changed, but monitor ran."
 
 def send_alert(message: str) -> None:
+    """Split long content into 2 000-char chunks and POST sequentially."""
     if not WEBHOOK:
-        print("⚠️  DISCORD_WEBHOOK not set")
+        print("⚠️  DISCORD_WEBHOOK not set; skipping alert.")
         return
-    r = requests.post(WEBHOOK, json={"content": message}, timeout=10)
-    if r.status_code >= 400:
-        # Show Discord's error for quick debugging, but don't crash the job
-        print(f"Discord error {r.status_code}: {r.text}")
-        r.raise_for_status()
+
+    for start in range(0, len(message), MAX_LEN):
+        chunk = message[start:start + MAX_LEN]
+        r = requests.post(WEBHOOK, json={"content": chunk}, timeout=10)
+        if r.status_code >= 400:
+            print(f"Discord error {r.status_code}: {r.text}")
+            r.raise_for_status()
+        if len(message) > MAX_LEN:
+            time.sleep(RATE_PAUSE)             # stay under 5 req/s
 
 
 # ───────────────  MAIN  ─────────────── #
