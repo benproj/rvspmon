@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Download last snapshot
-        continue-on-error: true  
+        continue-on-error: false  
         uses: actions/download-artifact@v4
         with:
           name: snapshot
