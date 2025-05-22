@@ -1,9 +1,5 @@
 name: RSVP monitor
 
-on:
-  schedule:
-    - cron: '0 * * * *'        # every hour, UTC  :contentReference[oaicite:3]{index=3}
-  workflow_dispatch:           # manual “Run workflow” button
 
 jobs:
   scrape:
